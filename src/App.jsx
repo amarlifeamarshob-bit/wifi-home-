@@ -473,7 +473,7 @@ export default function App() {
               <h1 style={{ fontFamily: "'Baloo Da 2', sans-serif", color: PALETTE.blue }} className="text-lg font-bold leading-none">
                 WiFi <span style={{ color: PALETTE.orange }}>Home</span>
               </h1>
-              <p className="text-[9px] tracking-wide" style={{ color: PALETTE.muted }}>আপনার অনলাইন মাল্টি-শপ</p>
+              <p className="text-[9px] tracking-wide" style={{ color: PALETTE.muted }}>ঘরে বসে দ্রুতগতির নির্ভরযোগ্য ইন্টারনেট</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -600,7 +600,7 @@ export default function App() {
 
       <footer className="mt-6 py-6 text-center" style={{ background: PALETTE.navy, color: "#DCEBFA" }}>
         <div className="flex items-center justify-center gap-4 text-sm mb-2 flex-wrap px-4">
-          <span className="flex items-center gap-1"><Facebook size={16} /> facebook.com/2LSBazar</span>
+          <span className="flex items-center gap-1"><Facebook size={16} /> facebook.com/WifiHome</span>
           <span className="flex items-center gap-1"><MessageCircle size={16} /> 01835-528501</span>
         </div>
         <p className="text-xs opacity-70">© ২০২৬ WiFi Home — ঢাকার ভেতরে ডেলিভারি ৳৯০, বাইরে ৳১৩০</p>
