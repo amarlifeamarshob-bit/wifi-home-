@@ -1,8 +1,13 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { storage } from "./lib/firebaseStorage.js";
+import { storage, app, db } from "./lib/firebaseStorage.js";
 import { adminSignIn } from "./lib/adminAuth.js";
-import { watchAuthState, customerSignUp, customerSignIn, customerSignOut } from "./lib/auth.js";
-import { submitReview, getApprovedReviews, getPendingReviews, approveReview, rejectReview } from "./lib/reviews.js";
+import {
+  getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+  signOut, onAuthStateChanged, updateProfile,
+} from "firebase/auth";
+import {
+  collection, addDoc, query, where, getDocs, updateDoc, deleteDoc, doc, serverTimestamp,
+} from "firebase/firestore";
 import {
   ShoppingBag, X, Plus, Minus, Check, ArrowLeft, Share2, Lock,
   Trash2, Pencil, Facebook, MessageCircle, Copy, LayoutDashboard, ClipboardList, Search, Star, User, LogOut
@@ -13,6 +18,57 @@ const BANNER = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAoHBwgHB
 const CLOUDINARY_CLOUD_NAME = "q61brqvu";
 const CLOUDINARY_UPLOAD_PRESET = "atrjqvq9";
 const EMAILJS_SERVICE_ID = "service_t7r5p0m";
+
+// ---- Customer auth (separate from the admin password gate) ----
+const auth = getAuth(app);
+
+async function customerSignUp(name, email, password) {
+  const cred = await createUserWithEmailAndPassword(auth, email, password);
+  if (name) await updateProfile(cred.user, { displayName: name });
+  return cred.user;
+}
+async function customerSignIn(email, password) {
+  const cred = await signInWithEmailAndPassword(auth, email, password);
+  return cred.user;
+}
+async function customerSignOut() {
+  await signOut(auth);
+}
+function watchAuthState(callback) {
+  return onAuthStateChanged(auth, callback);
+}
+
+// ---- Product reviews, with admin approval before they go public ----
+const REVIEWS_COLLECTION = "reviews";
+
+async function submitReview({ productId, userId, userName, rating, comment }) {
+  await addDoc(collection(db, REVIEWS_COLLECTION), {
+    productId, userId, userName, rating, comment,
+    status: "pending",
+    createdAt: serverTimestamp(),
+  });
+}
+async function getApprovedReviews(productId) {
+  const q = query(
+    collection(db, REVIEWS_COLLECTION),
+    where("productId", "==", productId),
+    where("status", "==", "approved")
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+async function getPendingReviews() {
+  const q = query(collection(db, REVIEWS_COLLECTION), where("status", "==", "pending"));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+async function approveReview(reviewId) {
+  await updateDoc(doc(db, REVIEWS_COLLECTION, reviewId), { status: "approved" });
+}
+async function rejectReview(reviewId) {
+  await deleteDoc(doc(db, REVIEWS_COLLECTION, reviewId));
+}
+
 const EMAILJS_TEMPLATE_ID = "template_o7uxnar";
 const EMAILJS_PUBLIC_KEY = "ORAIhxHndMnaV40yi";
 
