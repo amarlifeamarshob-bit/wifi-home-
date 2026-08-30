@@ -10,7 +10,7 @@ import {
 } from "firebase/firestore";
 import {
   ShoppingBag, X, Plus, Minus, Check, ArrowLeft, Share2, Lock,
-  Trash2, Pencil, Facebook, MessageCircle, Copy, LayoutDashboard, ClipboardList, Search, Star, User, LogOut, Download
+  Trash2, Pencil, Facebook, MessageCircle, Copy, LayoutDashboard, ClipboardList, Search, Star, User, LogOut, Download, Menu, ChevronRight
 } from "lucide-react";
 
 const LOGO = "/logo.png";
@@ -370,6 +370,7 @@ export default function App() {
   const [loaded, setLoaded] = useState(false);
   const [cart, setCart] = useState({}); // key: productId|size|color -> {qty, size, color, id}
   const [cartOpen, setCartOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [toast, setToast] = useState("");
   const productChunkCountRef = useRef(1);
 
@@ -547,7 +548,14 @@ export default function App() {
   else if (parts[0] === "account") view = "account";
 
   if (!loaded) {
-    return <div style={{ background: PALETTE.bg, minHeight: "100vh" }} />;
+    return (
+      <div style={{ background: PALETTE.bg, minHeight: "100vh" }} className="flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <img src={LOGO} alt="WiFi Home" className="w-16 h-16 object-contain animate-pulse" />
+          <span className="text-sm font-semibold" style={{ color: PALETTE.blue }}>লোড হচ্ছে...</span>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -555,13 +563,18 @@ export default function App() {
       {/* Header */}
       <header className="sticky top-0 z-30" style={{ background: PALETTE.card, borderBottom: `3px solid ${PALETTE.orange}` }}>
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate("#/")}>
-            <img src={logo} alt="WiFi Home" className="w-10 h-10 object-contain" />
-            <div>
-              <h1 style={{ fontFamily: "'Baloo Da 2', sans-serif", color: PALETTE.blue }} className="text-lg font-bold leading-none">
-                WiFi <span style={{ color: PALETTE.orange }}>Home</span>
-              </h1>
-              <p className="text-[9px] tracking-wide" style={{ color: PALETTE.muted }}>ঘরে বসে দ্রুতগতির নির্ভরযোগ্য ইন্টারনেট</p>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setMenuOpen(true)} className="p-2 -ml-2" style={{ color: PALETTE.blue }} aria-label="মেনু খুলুন">
+              <Menu size={24} />
+            </button>
+            <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate("#/")}>
+              <img src={logo} alt="WiFi Home" className="w-10 h-10 object-contain" />
+              <div>
+                <h1 style={{ fontFamily: "'Baloo Da 2', sans-serif", color: PALETTE.blue }} className="text-lg font-bold leading-none">
+                  WiFi <span style={{ color: PALETTE.orange }}>Home</span>
+                </h1>
+                <p className="text-[9px] tracking-wide" style={{ color: PALETTE.muted }}>ঘরে বসে দ্রুতগতির নির্ভরযোগ্য ইন্টারনেট</p>
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -660,6 +673,47 @@ export default function App() {
 
       {view === "admin" && (
         <AdminView products={products} orders={orders} banners={banners} logo={logo} categories={categories} promoPopup={promoPopup} setPromoPopup={setPromoPopup} saveProducts={saveProducts} saveOrders={saveOrders} saveBanners={saveBanners} saveLogo={saveLogo} saveCategories={saveCategories} navigate={navigate} copyLink={copyLink} />
+      )}
+
+      {/* Left menu drawer: categories + login/register */}
+      {menuOpen && (
+        <div className="fixed inset-0 z-40 flex">
+          <div className="w-80 max-w-[85vw] h-full overflow-y-auto" style={{ background: PALETTE.card }}>
+            <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: PALETTE.border }}>
+              <span className="font-bold" style={{ fontFamily: "'Baloo Da 2', sans-serif" }}>মেনু</span>
+              <button onClick={() => setMenuOpen(false)} className="flex items-center gap-1 text-sm font-medium" style={{ color: PALETTE.muted }}>
+                <X size={18} /> Close
+              </button>
+            </div>
+            <div>
+              {categories.map((cat) => (
+                <button
+                  key={cat.name}
+                  onClick={() => { setMenuOpen(false); navigate(`#/category/${slugify(cat.name)}`); }}
+                  className="w-full flex items-center justify-between px-5 py-3.5 border-b text-left"
+                  style={{ borderColor: PALETTE.border }}
+                >
+                  <span className="flex items-center gap-3 text-sm font-medium">
+                    <span className="text-lg">{cat.icon}</span>
+                    {cat.name}
+                  </span>
+                  <ChevronRight size={18} color={PALETTE.muted} />
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => { setMenuOpen(false); navigate("#/account"); }}
+              className="w-full flex items-center justify-between px-5 py-3.5 text-left"
+            >
+              <span className="flex items-center gap-3 text-sm font-semibold" style={{ color: PALETTE.blue }}>
+                <User size={18} />
+                {user ? (user.displayName || "অ্যাকাউন্ট") : "Login / Register"}
+              </span>
+              <ChevronRight size={18} color={PALETTE.blue} />
+            </button>
+          </div>
+          <div className="flex-1" style={{ background: "rgba(0,0,0,0.4)" }} onClick={() => setMenuOpen(false)} />
+        </div>
       )}
 
       {/* Cart drawer */}
