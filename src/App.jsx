@@ -10,7 +10,7 @@ import {
 } from "firebase/firestore";
 import {
   ShoppingBag, X, Plus, Minus, Check, ArrowLeft, Share2, Lock,
-  Trash2, Pencil, Facebook, MessageCircle, Copy, LayoutDashboard, ClipboardList, Search, Star, User, LogOut, Download, Menu, ChevronRight
+  Trash2, Pencil, Facebook, MessageCircle, Copy, LayoutDashboard, ClipboardList, Search, Star, User, LogOut, Download, Menu, ChevronRight, Mail, Eye, EyeOff
 } from "lucide-react";
 
 const LOGO = "/logo.png";
@@ -578,9 +578,6 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => navigate("#/account")} className="p-2 rounded-full" style={{ background: "#E4EEF8", color: PALETTE.blue }} title={user ? (user.displayName || "অ্যাকাউন্ট") : "লগইন করুন"}>
-              <User size={18} />
-            </button>
             <button onClick={() => navigate("#/track")} className="p-2 rounded-full" style={{ background: "#E4EEF8", color: PALETTE.blue }} title="অর্ডার ট্র্যাক করুন">
               <ClipboardList size={18} />
             </button>
@@ -1835,6 +1832,7 @@ function AccountView({ navigate, user }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -1844,7 +1842,10 @@ function AccountView({ navigate, user }) {
     if (code === "auth/invalid-email") return "সঠিক ইমেইল দাও";
     if (code === "auth/weak-password") return "পাসওয়ার্ড কমপক্ষে ৬ ক্যারেক্টার হতে হবে";
     if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") return "ইমেইল অথবা পাসওয়ার্ড ভুল";
-    return "কিছু একটা সমস্যা হয়েছে, আবার চেষ্টা করো";
+    if (code === "auth/operation-not-allowed") return "অ্যাডমিনকে বলো: Firebase Console-এ Email/Password লগইন এখনো চালু করা হয়নি";
+    if (code === "auth/network-request-failed") return "ইন্টারনেট কানেকশন চেক করো";
+    console.error("Auth error:", err);
+    return "কিছু একটা সমস্যা হয়েছে (" + (code || "unknown") + "), আবার চেষ্টা করো";
   };
 
   const submit = async () => {
@@ -1869,51 +1870,83 @@ function AccountView({ navigate, user }) {
 
   if (user) {
     return (
-      <section className="max-w-md mx-auto px-4 py-10">
-        <div className="rounded-2xl p-6 text-center" style={{ background: PALETTE.card, border: `1px solid ${PALETTE.border}` }}>
-          <div className="w-16 h-16 rounded-full mx-auto mb-3 flex items-center justify-center" style={{ background: "#E4EEF8" }}>
-            <User size={28} color={PALETTE.blue} />
+      <section className="max-w-md mx-auto px-4 py-12">
+        <div className="rounded-2xl p-8 text-center shadow-sm" style={{ background: PALETTE.card, border: `1px solid ${PALETTE.border}` }}>
+          <div className="w-20 h-20 rounded-full mx-auto mb-4 flex items-center justify-center" style={{ background: "linear-gradient(135deg, #E4EEF8, #F0F7FF)" }}>
+            <User size={32} color={PALETTE.blue} />
           </div>
-          <p className="font-semibold text-lg">{user.displayName || "কাস্টমার"}</p>
-          <p className="text-sm mb-5" style={{ color: PALETTE.muted }}>{user.email}</p>
+          <p className="font-bold text-lg" style={{ fontFamily: "'Baloo Da 2', sans-serif" }}>{user.displayName || "কাস্টমার"}</p>
+          <p className="text-sm mb-6" style={{ color: PALETTE.muted }}>{user.email}</p>
           <button
             onClick={async () => { await customerSignOut(); navigate("#/"); }}
-            className="w-full py-2.5 rounded-full font-semibold flex items-center justify-center gap-2"
+            className="w-full py-3 rounded-full font-semibold flex items-center justify-center gap-2 transition-opacity active:opacity-80"
             style={{ background: "#FCE4E4", color: "#C0392B" }}
           >
             <LogOut size={16} /> লগ-আউট করুন
           </button>
         </div>
-        <button onClick={() => navigate("#/")} className="mt-6 text-sm font-medium block mx-auto" style={{ color: PALETTE.blue }}>← শপে ফিরে যান</button>
+        <button onClick={() => navigate("#/")} className="mt-6 text-sm font-medium flex items-center gap-1 mx-auto" style={{ color: PALETTE.blue }}>
+          <ArrowLeft size={14} /> শপে ফিরে যান
+        </button>
       </section>
     );
   }
 
+  const inputStyle = { borderColor: PALETTE.border, background: PALETTE.bg };
+
   return (
-    <section className="max-w-md mx-auto px-4 py-10">
-      <div className="rounded-2xl p-6" style={{ background: PALETTE.card, border: `1px solid ${PALETTE.border}` }}>
-        <div className="flex gap-2 mb-5">
-          <button onClick={() => { setMode("login"); setError(""); }} className="flex-1 py-2 rounded-full text-sm font-semibold" style={mode === "login" ? { background: PALETTE.blue, color: "#fff" } : { border: `1px solid ${PALETTE.border}` }}>
+    <section className="max-w-md mx-auto px-4 py-12">
+      <div className="flex flex-col items-center mb-6">
+        <img src={LOGO} alt="WiFi Home" className="w-14 h-14 object-contain mb-2" />
+        <h1 className="text-lg font-bold" style={{ fontFamily: "'Baloo Da 2', sans-serif", color: PALETTE.blue }}>
+          {mode === "login" ? "স্বাগতম, লগইন করো" : "নতুন অ্যাকাউন্ট তৈরি করো"}
+        </h1>
+        <p className="text-xs mt-1" style={{ color: PALETTE.muted }}>
+          {mode === "login" ? "রিভিউ দিতে এবং অর্ডার ট্র্যাক করতে লগইন করো" : "মাত্র কয়েক সেকেন্ডেই তৈরি হয়ে যাবে"}
+        </p>
+      </div>
+
+      <div className="rounded-2xl p-6 shadow-sm" style={{ background: PALETTE.card, border: `1px solid ${PALETTE.border}` }}>
+        <div className="flex gap-2 mb-5 p-1 rounded-full" style={{ background: PALETTE.bg }}>
+          <button onClick={() => { setMode("login"); setError(""); }} className="flex-1 py-2 rounded-full text-sm font-semibold transition-colors" style={mode === "login" ? { background: PALETTE.blue, color: "#fff" } : { color: PALETTE.muted }}>
             লগইন
           </button>
-          <button onClick={() => { setMode("register"); setError(""); }} className="flex-1 py-2 rounded-full text-sm font-semibold" style={mode === "register" ? { background: PALETTE.blue, color: "#fff" } : { border: `1px solid ${PALETTE.border}` }}>
+          <button onClick={() => { setMode("register"); setError(""); }} className="flex-1 py-2 rounded-full text-sm font-semibold transition-colors" style={mode === "register" ? { background: PALETTE.blue, color: "#fff" } : { color: PALETTE.muted }}>
             রেজিস্টার
           </button>
         </div>
 
-        {mode === "register" && (
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="তোমার নাম" className="w-full px-3 py-2 rounded-lg border mb-3" style={{ borderColor: PALETTE.border }} />
+        <div className="space-y-3">
+          {mode === "register" && (
+            <div className="relative">
+              <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2" color={PALETTE.muted} />
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="তোমার নাম" className="w-full pl-9 pr-3 py-2.5 rounded-lg border text-sm" style={inputStyle} />
+            </div>
+          )}
+          <div className="relative">
+            <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2" color={PALETTE.muted} />
+            <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="ইমেইল" type="email" className="w-full pl-9 pr-3 py-2.5 rounded-lg border text-sm" style={inputStyle} />
+          </div>
+          <div className="relative">
+            <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2" color={PALETTE.muted} />
+            <input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="পাসওয়ার্ড" type={showPassword ? "text" : "password"} className="w-full pl-9 pr-9 py-2.5 rounded-lg border text-sm" style={inputStyle} />
+            <button type="button" onClick={() => setShowPassword((s) => !s)} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: PALETTE.muted }}>
+              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
+        </div>
+
+        {error && (
+          <p className="text-xs mt-3 font-medium px-3 py-2 rounded-lg" style={{ color: "#C0392B", background: "#FCE4E4" }}>{error}</p>
         )}
-        <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="ইমেইল" type="email" className="w-full px-3 py-2 rounded-lg border mb-3" style={{ borderColor: PALETTE.border }} />
-        <input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="পাসওয়ার্ড" type="password" className="w-full px-3 py-2 rounded-lg border mb-3" style={{ borderColor: PALETTE.border }} />
 
-        {error && <p className="text-xs mb-3 font-medium" style={{ color: "#C0392B" }}>{error}</p>}
-
-        <button onClick={submit} disabled={loading} className="w-full py-2.5 rounded-full font-semibold" style={{ background: PALETTE.orange, color: "#fff", opacity: loading ? 0.7 : 1 }}>
+        <button onClick={submit} disabled={loading} className="w-full py-3 rounded-full font-semibold mt-5 transition-opacity active:opacity-80" style={{ background: PALETTE.orange, color: "#fff", opacity: loading ? 0.7 : 1 }}>
           {loading ? "হচ্ছে..." : mode === "login" ? "লগইন করো" : "অ্যাকাউন্ট তৈরি করো"}
         </button>
       </div>
-      <button onClick={() => navigate("#/")} className="mt-6 text-sm font-medium block mx-auto" style={{ color: PALETTE.blue }}>← শপে ফিরে যান</button>
+      <button onClick={() => navigate("#/")} className="mt-6 text-sm font-medium flex items-center gap-1 mx-auto" style={{ color: PALETTE.blue }}>
+        <ArrowLeft size={14} /> শপে ফিরে যান
+      </button>
     </section>
   );
 }
