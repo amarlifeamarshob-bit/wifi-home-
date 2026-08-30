@@ -6,11 +6,11 @@ import {
   signOut, onAuthStateChanged, updateProfile,
 } from "firebase/auth";
 import {
-  collection, addDoc, query, where, getDocs, updateDoc, deleteDoc, doc, serverTimestamp,
+  collection, addDoc, query, where, getDocs, updateDoc, deleteDoc, doc, getDoc, setDoc, serverTimestamp,
 } from "firebase/firestore";
 import {
   ShoppingBag, X, Plus, Minus, Check, ArrowLeft, Share2, Lock,
-  Trash2, Pencil, Facebook, MessageCircle, Copy, LayoutDashboard, ClipboardList, Search, Star, User, LogOut, Download, Menu, ChevronRight, Mail, Eye, EyeOff
+  Trash2, Pencil, Facebook, MessageCircle, Copy, LayoutDashboard, ClipboardList, Search, Star, User, LogOut, Download, Menu, ChevronRight, Mail, Eye, EyeOff, Phone, BadgeCheck
 } from "lucide-react";
 
 const LOGO = "/logo.png";
@@ -20,15 +20,21 @@ const CLOUDINARY_UPLOAD_PRESET = "atrjqvq9";
 const EMAILJS_SERVICE_ID = "service_t7r5p0m";
 
 // ---- Customer auth (separate from the admin password gate) ----
+// Firebase Auth needs an email under the hood, but customers only ever see
+// a phone number — we build a fake, invisible email from the phone number.
+// This also lets an admin cross-check a reviewer's phone against real
+// orders before approving their review.
 const auth = getAuth(app);
+const phoneToEmail = (phone) => phone.replace(/\D/g, "") + "@wifihome.customer";
 
-async function customerSignUp(name, email, password) {
-  const cred = await createUserWithEmailAndPassword(auth, email, password);
+async function customerSignUp(name, phone, password) {
+  const cred = await createUserWithEmailAndPassword(auth, phoneToEmail(phone), password);
   if (name) await updateProfile(cred.user, { displayName: name });
+  await setDoc(doc(db, "customers", cred.user.uid), { name, phone, createdAt: serverTimestamp() });
   return cred.user;
 }
-async function customerSignIn(email, password) {
-  const cred = await signInWithEmailAndPassword(auth, email, password);
+async function customerSignIn(phone, password) {
+  const cred = await signInWithEmailAndPassword(auth, phoneToEmail(phone), password);
   return cred.user;
 }
 async function customerSignOut() {
@@ -37,13 +43,17 @@ async function customerSignOut() {
 function watchAuthState(callback) {
   return onAuthStateChanged(auth, callback);
 }
+async function getCustomerPhone(uid) {
+  const snap = await getDoc(doc(db, "customers", uid));
+  return snap.exists() ? snap.data().phone : "";
+}
 
 // ---- Product reviews, with admin approval before they go public ----
 const REVIEWS_COLLECTION = "reviews";
 
-async function submitReview({ productId, userId, userName, rating, comment }) {
+async function submitReview({ productId, userId, userName, phone, rating, comment }) {
   await addDoc(collection(db, REVIEWS_COLLECTION), {
-    productId, userId, userName, rating, comment,
+    productId, userId, userName, phone, rating, comment,
     status: "pending",
     createdAt: serverTimestamp(),
   });
@@ -1317,16 +1327,18 @@ function ProductView({ productId, products, categories, navigate, onAdd, copyLin
     }
     setReviewSubmitting(true);
     try {
+      const phone = await getCustomerPhone(user.uid);
       await submitReview({
         productId: p.id,
         userId: user.uid,
-        userName: user.displayName || user.email || "কাস্টমার",
+        userName: user.displayName || "কাস্টমার",
+        phone,
         rating: myRating,
         comment: myComment.trim(),
       });
       setMyRating(0);
       setMyComment("");
-      setReviewMsg("ধন্যবাদ! রিভিউটা এডমিন চেক করার পর দেখা যাবে।");
+      setReviewMsg("ধন্যবাদ! তোমার অর্ডারের সাথে ফোন নম্বর যাচাই করার পর রিভিউটা এখানে দেখা যাবে।");
     } catch (e) {
       setReviewMsg("রিভিউ জমা দেওয়া যায়নি, আবার চেষ্টা করো।");
     }
@@ -1507,6 +1519,10 @@ function ProductView({ productId, products, categories, navigate, onAdd, copyLin
               className="w-full px-3 py-2 rounded-lg border text-sm mb-2"
               style={{ borderColor: PALETTE.border }}
             />
+            <p className="text-xs mb-2 flex items-start gap-1.5" style={{ color: PALETTE.muted }}>
+              <BadgeCheck size={13} className="flex-shrink-0 mt-0.5" />
+              জমা দেওয়ার পর তোমার ফোন নম্বর আগের অর্ডারের সাথে মিলিয়ে যাচাই করা হবে। যাচাই সফল হলে রিভিউটা এখানে প্রকাশ হবে।
+            </p>
             {reviewMsg && <p className="text-xs mb-2 font-medium" style={{ color: PALETTE.orange }}>{reviewMsg}</p>}
             <button
               onClick={handleSubmitReview}
@@ -1830,7 +1846,7 @@ function TrackOrderView({ navigate, orders, initialId }) {
 function AccountView({ navigate, user }) {
   const [mode, setMode] = useState("login"); // "login" | "register"
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
@@ -1838,10 +1854,10 @@ function AccountView({ navigate, user }) {
 
   const friendlyError = (err) => {
     const code = err && err.code;
-    if (code === "auth/email-already-in-use") return "এই ইমেইল দিয়ে আগেই অ্যাকাউন্ট আছে, লগইন করো";
-    if (code === "auth/invalid-email") return "সঠিক ইমেইল দাও";
+    if (code === "auth/email-already-in-use") return "এই ফোন নম্বর দিয়ে আগেই অ্যাকাউন্ট আছে, লগইন করো";
+    if (code === "auth/invalid-email") return "সঠিক ফোন নম্বর দাও (যেমন: 01XXXXXXXXX)";
     if (code === "auth/weak-password") return "পাসওয়ার্ড কমপক্ষে ৬ ক্যারেক্টার হতে হবে";
-    if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") return "ইমেইল অথবা পাসওয়ার্ড ভুল";
+    if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") return "ফোন নম্বর অথবা পাসওয়ার্ড ভুল";
     if (code === "auth/operation-not-allowed") return "অ্যাডমিনকে বলো: Firebase Console-এ Email/Password লগইন এখনো চালু করা হয়নি";
     if (code === "auth/network-request-failed") return "ইন্টারনেট কানেকশন চেক করো";
     console.error("Auth error:", err);
@@ -1850,16 +1866,24 @@ function AccountView({ navigate, user }) {
 
   const submit = async () => {
     setError("");
-    if (!email.trim() || !password.trim()) {
-      setError("ইমেইল আর পাসওয়ার্ড দাও");
+    if (!/^0\d{9,10}$/.test(phone.trim())) {
+      setError("সঠিক ফোন নম্বর দাও (যেমন: 01XXXXXXXXX)");
+      return;
+    }
+    if (!password.trim()) {
+      setError("পাসওয়ার্ড দাও");
+      return;
+    }
+    if (mode === "register" && !name.trim()) {
+      setError("তোমার নাম দাও");
       return;
     }
     setLoading(true);
     try {
       if (mode === "register") {
-        await customerSignUp(name.trim(), email.trim(), password);
+        await customerSignUp(name.trim(), phone.trim(), password);
       } else {
-        await customerSignIn(email.trim(), password);
+        await customerSignIn(phone.trim(), password);
       }
       navigate("#/");
     } catch (err) {
@@ -1876,10 +1900,9 @@ function AccountView({ navigate, user }) {
             <User size={32} color={PALETTE.blue} />
           </div>
           <p className="font-bold text-lg" style={{ fontFamily: "'Baloo Da 2', sans-serif" }}>{user.displayName || "কাস্টমার"}</p>
-          <p className="text-sm mb-6" style={{ color: PALETTE.muted }}>{user.email}</p>
           <button
             onClick={async () => { await customerSignOut(); navigate("#/"); }}
-            className="w-full py-3 rounded-full font-semibold flex items-center justify-center gap-2 transition-opacity active:opacity-80"
+            className="w-full py-3 rounded-full font-semibold flex items-center justify-center gap-2 transition-opacity active:opacity-80 mt-6"
             style={{ background: "#FCE4E4", color: "#C0392B" }}
           >
             <LogOut size={16} /> লগ-আউট করুন
@@ -1924,8 +1947,8 @@ function AccountView({ navigate, user }) {
             </div>
           )}
           <div className="relative">
-            <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2" color={PALETTE.muted} />
-            <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="ইমেইল" type="email" className="w-full pl-9 pr-3 py-2.5 rounded-lg border text-sm" style={inputStyle} />
+            <Phone size={16} className="absolute left-3 top-1/2 -translate-y-1/2" color={PALETTE.muted} />
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="ফোন নম্বর (যেমন: 01XXXXXXXXX)" type="tel" className="w-full pl-9 pr-3 py-2.5 rounded-lg border text-sm" style={inputStyle} />
           </div>
           <div className="relative">
             <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2" color={PALETTE.muted} />
@@ -1935,6 +1958,13 @@ function AccountView({ navigate, user }) {
             </button>
           </div>
         </div>
+
+        {mode === "register" && (
+          <p className="text-xs mt-3 px-3 py-2 rounded-lg flex items-start gap-1.5" style={{ background: "#E4EEF8", color: PALETTE.blue }}>
+            <BadgeCheck size={14} className="flex-shrink-0 mt-0.5" />
+            রিভিউ দেওয়ার সময় তোমার এই ফোন নম্বর আগের অর্ডারের সাথে মিলিয়ে যাচাই করা হবে।
+          </p>
+        )}
 
         {error && (
           <p className="text-xs mt-3 font-medium px-3 py-2 rounded-lg" style={{ color: "#C0392B", background: "#FCE4E4" }}>{error}</p>
@@ -2279,13 +2309,26 @@ function AdminView({ products, orders, banners, logo, categories, promoPopup, se
           <div className="space-y-3">
             {pendingReviews.map((r) => {
               const prod = products.find((p) => p.id === r.productId);
+              const matchingOrders = r.phone ? orders.filter((o) => o.phone && o.phone.replace(/\D/g, "") === r.phone.replace(/\D/g, "")) : [];
+              const verified = matchingOrders.length > 0;
               return (
                 <div key={r.id} className="rounded-xl p-4" style={{ background: PALETTE.card, border: `1px solid ${PALETTE.border}` }}>
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-sm font-semibold">{prod ? prod.title : "প্রোডাক্ট মুছে ফেলা হয়েছে"}</span>
                     <StarRating value={r.rating} size={14} />
                   </div>
-                  <p className="text-xs mb-2" style={{ color: PALETTE.muted }}>{r.userName}</p>
+                  <p className="text-xs mb-1" style={{ color: PALETTE.muted }}>{r.userName} {r.phone ? `· ${r.phone}` : ""}</p>
+                  <div className="mb-2">
+                    {verified ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "#E1F5EC", color: "#1E8E5A" }}>
+                        <BadgeCheck size={12} /> এই নম্বর দিয়ে {matchingOrders.length}টি অর্ডার পাওয়া গেছে
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "#FCE4E4", color: "#C0392B" }}>
+                        এই নম্বর দিয়ে কোনো অর্ডার পাওয়া যায়নি
+                      </span>
+                    )}
+                  </div>
                   {r.comment && <p className="text-sm mb-3">{r.comment}</p>}
                   <div className="flex gap-2">
                     <button
